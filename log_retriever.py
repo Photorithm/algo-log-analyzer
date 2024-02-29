@@ -11,10 +11,13 @@ import datetime
 
 class LogRetriever:
 
-    def __init__(self, mac_path = r'/Users/matanb/Downloads/All Version Users-data-2023-11-01 09_00_38.csv'):
+    def __init__(self, mac_path = None):
+        root = os.getcwd()
+        mac_path = os.path.join(root, 'All Version Users-data-2024-02-25 09_09_31.csv')
+        macs = pd.read_csv(mac_path)
         self.storage_client = storage.Client()
         self.bucket_name = "nanobebe-iot-logs"
-        self.macs = pd.read_csv(mac_path)
+        self.macs = macs
 
 
     def get_logs(self,  acc_id ,  dates, mac_id = None, output_path = None):

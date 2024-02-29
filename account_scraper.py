@@ -124,7 +124,9 @@ def get_packet_id(file_path):
 
 class AccountScraper:
 
-    def __init__(self,  dates = None, mac_path = r'/Users/matanb/Downloads/All Version Users-data-2023-11-01 09_00_38.csv', mac_id = None, acc_id = None):
+    def __init__(self,  dates = None, mac_path = None, mac_id = None, acc_id = None):
+        root = os.getcwd()
+        mac_path = os.path.join(root, 'All Version Users-data-2024-02-25 09_09_31.csv')
         macs = pd.read_csv(mac_path)
         if mac_id is not None and acc_id is not None:
             macs = pd.concat([macs, pd.DataFrame([[acc_id, mac_id, mac_id]],
