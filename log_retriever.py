@@ -74,6 +74,8 @@ class LogRetriever:
         for i, blob in enumerate(tqdm.tqdm(relevant_blobs)):
             # download the file
             # check if the file exists
+            if not os.path.exists(f'./temp'):
+                os.mkdir(f'./temp')
             filename = f'./temp/{mac_id}_{blob.time_created}.tgz'
             if ~os.path.exists(filename):
                 blob.download_to_filename(filename)

@@ -91,7 +91,7 @@ def weekDay(year, month, day):
     dayOfWeek %= 7
     return dayOfWeek, week[dayOfWeek]
 os.environ[
-    'GOOGLE_APPLICATION_CREDENTIALS'] = '/Users/matanb/.config/gcloud/application_default_credentials.json'
+    'GOOGLE_APPLICATION_CREDENTIALS'] = '/Users/oribondi/.config/gcloud/application_default_credentials.json'
 storage_client = storage.Client(project='nanobebe-production')
 def figures_to_html(figs, filename="dashboard.html"):
     with open(filename, 'w') as dashboard:
@@ -1402,8 +1402,10 @@ class AccountScraper:
 
 
 
-                if line_data['mntr_frms'] is not None:
+                if line_data['mntr_frms'] is not None and line_data['mntr_frms'] > 0:
                     data['monitoring'][-1] = True
+                else:
+                    data['monitoring'][-1] = False
                 if line_data['crtc_frms'] is None:
                     data['is_critical'][-1] = False
                 else:

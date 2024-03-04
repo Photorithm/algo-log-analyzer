@@ -7,7 +7,7 @@ import pandas as pd
 
 root = os.getcwd()
 # step out cd to 'log_analyzer' if needed
-if os.path.basename(root) != 'log_analyzer':
+if os.path.basename(root) != 'algo-log-analyzer':
     os.chdir('..')
     root = os.getcwd()
 mac_path = os.path.join(root, 'All Version Users-data-2024-02-25 09_09_31.csv')
@@ -15,8 +15,8 @@ macs = pd.read_csv(mac_path)
 
 
 # ======================================================================================================================
-acc_id = 736
-_date = pd.to_datetime('2024-02-28')
+acc_id = 1976
+_date = pd.to_datetime('2024-02-11')
 # ======================================================================================================================
 
 
