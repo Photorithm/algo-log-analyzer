@@ -203,7 +203,7 @@ class AccountScraper:
 
         if dates is None:
             dates = pd.date_range(
-                start=pd.to_datetime('today') - pd.Timedelta(days=2),
+                start=pd.to_datetime('today') - pd.Timedelta(days=1),
                 end=pd.to_datetime('today'),
             )
         self.log_paths = self.download_logs(dates)
@@ -2037,10 +2037,9 @@ class AccountScraper:
         return output
 
 
-# object = AccountScraper(mac_id="E062906E3449", acc_id=2883)
-# object.get_all()
-
 object = AccountScraper(mac_id="E06290422B33", acc_id=3081)
+# object = AccountScraper(mac_id="E062906E3449", acc_id=2883)
+# object = AccountScraper(mac_id="E062902B3636", acc_id=2955)
 object.get_all()
 
 # print("hello")

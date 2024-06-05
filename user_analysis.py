@@ -1,13 +1,19 @@
 import json
 import pandas as pd
 import matplotlib
+import os
+import tarfile
+import shutil
+import os
+import re
 
 matplotlib.rcParams['interactive'] = True
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import tarfile
 
 
-def extract_dfs_from_log_file(log_path: str, only_algo_sec=False):
+def extract_dfs_from_log_file(log_path: str):
     dict = {
         'rut_s': None,
         'cnf_baby_dtct': None,
@@ -15,6 +21,7 @@ def extract_dfs_from_log_file(log_path: str, only_algo_sec=False):
         'nbc_breath_clsf': None,
         'pwr': None,
         'baby_dtct_cnf': None,
+        'head_dtct_cnf': 0,
         'usr_frq': None,
     }
     event_df = pd.DataFrame(columns=dict.keys())
@@ -49,8 +56,18 @@ def extract_dfs_from_log_file(log_path: str, only_algo_sec=False):
 
                     # add dict_temp to event_df
                     temp_df = pd.DataFrame([dict_temp])
+                    try:
+                        temp_df["head_dtct_cnf"] = event_df[
+                            "head_dtct_cnf"
+                        ].iloc[-1]
+                    except IndexError:
+                        temp_df["head_dtct_cnf"] = 0
                     event_df = pd.concat([event_df, temp_df], ignore_index=True)
-
+                elif "ALGO_EVENT" in line:
+                    match = re.search(r'"conf": (\d+\.\d+)', line)
+                    if match:
+                        head_dtct_cnf = float(match.group(1))
+                        event_df["head_dtct_cnf"].iloc[-1] = head_dtct_cnf
             except json.JSONDecodeError as e:
                 print(f'Error parsing JSON: {e} in line: {line}')
 
@@ -59,12 +76,9 @@ def extract_dfs_from_log_file(log_path: str, only_algo_sec=False):
 
 def plot_data(df, indices, user_id):
 
-    breathing_classifier_high_threshold = 0.5
-    subject_threshold = 0.4
-    pwr_threshold = 450
     factor = 0.2
     # Create the plot
-    fig, axs = plt.subplots(3, figsize=(100 * factor, 50 * factor))
+
     fontsize = 50 * factor
     label_size = 50 * factor
     title_size = 60 * factor
@@ -84,81 +98,53 @@ def plot_data(df, indices, user_id):
         for label, color in colors.items()
     ]
 
-    # Plot med_breath_clsf
-    axs[0].plot(
-        df.loc[indices].index, df.loc[indices, 'med_breath_clsf'], color='black'
-    )
-    for i in range(len(indices) - 1):
-        axs[0].fill_between(
-            [df.index[indices[i]], df.index[indices[i + 1]]],
-            [0, 0],
-            [df['med_breath_clsf'].max(), df['med_breath_clsf'].max()],
-            color=df['color'][indices[i]],
+    breathing_classifier_high_threshold = 0.5
+    subject_threshold = 0.4
+    pwr_threshold = 450
+    head_dtct_cnf_threshold = 0.1
+    columns = [
+        'med_breath_clsf',
+        'pwr',
+        'baby_dtct_cnf',
+        'usr_frq',
+        'head_dtct_cnf',
+    ]
+    thresholds = [
+        breathing_classifier_high_threshold,
+        pwr_threshold,
+        subject_threshold,
+        0,
+        head_dtct_cnf_threshold,
+    ]
+    fig, axs = plt.subplots(len(columns), figsize=(100 * factor, 50 * factor))
+    for idx, column in enumerate(columns):
+        axs[idx].plot(
+            df.loc[indices].index, df.loc[indices, column], color='black'
         )
-    axs[0].set_xlabel('Index', fontsize=fontsize)
-    axs[0].set_ylabel('med_breath_clsf', fontsize=fontsize)
-    axs[0].tick_params(axis='both', which='major', labelsize=label_size)
-    axs[0].set_title(f'{user_id}_med_breath_clsf', fontsize=title_size)
-    axs[0].autoscale_on = True
-    axs[0].grid(True)
-    axs[0].legend(
-        handles=patches, loc='upper right', fontsize=fontsize
-    )  # Add the legend to the plot
-    axs[0].axhline(
-        y=breathing_classifier_high_threshold,
-        color='r',
-        linestyle='--',
-        label='Breathing Classifier High Threshold',
-        linewidth=5,
-    )
 
-    # Plot pwr
-    axs[1].plot(df.loc[indices].index, df.loc[indices, 'pwr'], color='black')
-    for i in range(len(indices) - 1):
-        axs[1].fill_between(
-            [df.index[indices[i]], df.index[indices[i + 1]]],
-            [0, 0],
-            [df.loc[indices]['pwr'].max(), df.loc[indices]['pwr'].max()],
-            color=df['color'][indices[i]],
-        )
-    axs[1].set_xlabel('Index', fontsize=fontsize)
-    axs[1].set_ylabel('pwr', fontsize=fontsize)
-    axs[1].tick_params(axis='both', which='major', labelsize=label_size)
-    axs[1].set_title(f'{user_id}_pwr', fontsize=title_size)
-    axs[1].autoscale_on = True
-    axs[1].grid(True)
-    axs[1].axhline(
-        y=pwr_threshold,
-        color='r',
-        linestyle='--',
-        label='pwr_threshold',
-        linewidth=5,
-    )
+        for i in range(len(indices) - 1):
+            axs[idx].fill_between(
+                [df.index[indices[i]], df.index[indices[i + 1]]],
+                [0, 0],
+                [df.loc[indices][column].max(), df.loc[indices][column].max()],
+                color=df['color'][indices[i]],
+            )
 
-    # Plot baby_dtct_cnf
-    axs[2].plot(
-        df.loc[indices].index, df.loc[indices, 'baby_dtct_cnf'], color='black'
-    )
-    for i in range(len(indices) - 1):
-        axs[2].fill_between(
-            [df.index[indices[i]], df.index[indices[i + 1]]],
-            [0, 0],
-            [df['baby_dtct_cnf'].max(), df['baby_dtct_cnf'].max()],
-            color=df['color'][indices[i]],
-        )
-    axs[2].set_xlabel('Index', fontsize=fontsize)
-    axs[2].set_ylabel('baby_dtct_cnf', fontsize=fontsize)
-    axs[2].tick_params(axis='both', which='major', labelsize=label_size)
-    axs[2].set_title(f'{user_id}_baby_dtct_cnf', fontsize=title_size)
-    axs[2].autoscale_on = True
-    axs[2].grid(True)
-    axs[2].axhline(
-        y=subject_threshold,
-        color='r',
-        linestyle='--',
-        label='Subject Threshold',
-        linewidth=5,
-    )
+        axs[idx].set_xlabel('Index', fontsize=fontsize)
+        axs[idx].set_ylabel(column, fontsize=fontsize)
+        axs[idx].tick_params(axis='both', which='major', labelsize=label_size)
+        axs[idx].set_title(f'{user_id}_{column}', fontsize=title_size)
+        axs[idx].autoscale_on = True
+        axs[idx].grid(True)
+        axs[idx].legend(handles=patches, loc='upper right', fontsize=fontsize)
+        if thresholds[idx] != 0:
+            axs[idx].axhline(
+                y=thresholds[idx],
+                color='r',
+                linestyle='--',
+                label=f'{column} Threshold',
+                linewidth=3,
+            )
 
     # Show the plot
     plt.tight_layout()
@@ -168,20 +154,41 @@ def plot_data(df, indices, user_id):
     plt.show(block=True)
 
 
-user_id = 'E062906E3449'
+def extract_syslogs_from_path(src_path, dst_path, user_id):
 
-# create a df #TODO update according to the data
-# log_path = f"/Users/shirmilstein/Code/algo-log-analyzer/data/{user_id}/prev/varlog/syslog"
-# event_df0 = extract_dfs_from_log_file(log_path, only_algo_sec=False)
-# log_path = f"/Users/shirmilstein/Code/algo-log-analyzer/data/{user_id}/prev 2/varlog/syslog"
-# event_df2 = extract_dfs_from_log_file(log_path, only_algo_sec=False)
-# log_path = f"/Users/shirmilstein/Code/algo-log-analyzer/data/{user_id}/prev 3/varlog/syslog"
-# event_df3 = extract_dfs_from_log_file(log_path, only_algo_sec=False)
-# concat_df = pd.concat([event_df0, event_df2, event_df3])
-# concat_df.to_csv('data.csv', index=False)
+    # TODO - limited to one file!
+    # iterate over tgz files in the directory
+    for file in os.listdir(src_path):
+        if file.endswith(".tgz") and file.startswith(user_id):
+            # Open the tar.gz file
+            with tarfile.open(f"{src_path}/{file}", "r:gz") as tar:
+                # Iterate through the members to find the syslog file
+                for member in tar.getmembers():
+                    if (
+                        member.name.endswith('syslog')
+                        and 'prev/varlog/' in member.name
+                    ):
+                        # Extract the syslog file to the destination path
+                        member.name = os.path.basename(
+                            member.name
+                        )  # To avoid extracting full path
+                        tar.extract(member, f"{dst_path}/{user_id}")
+                        print(
+                            f"Extracted {member.name} to {dst_path}/{user_id}"
+                        )
+                        return
+                # If syslog file is not found, raise an exception
+                raise FileNotFoundError("syslog file not found in the archive")
 
 
-df = pd.read_csv('data.csv')
-# run and choose indexes
-plot_data(df, range(2000, 2200), user_id=user_id)
-print('done')
+user_id = 'E06290422B33'
+src_path = '/Users/shirmilstein/Code/algo-log-analyzer/temp'
+dst_path = f'/Users/shirmilstein/Code/algo-log-analyzer/data'
+
+# extract_syslogs_from_path(src_path, dst_path, user_id)
+df = extract_dfs_from_log_file(f"{dst_path}/{user_id}/syslog")
+df.to_csv(f"{dst_path}/{user_id}/{user_id}_data.csv", index=False)
+df = pd.read_csv(f"{dst_path}/{user_id}/{user_id}_data.csv")
+# # run and choose indexes
+plot_data(df, range(7750, 7850), user_id=user_id)
+# print('done')
