@@ -510,8 +510,12 @@ class AccountScraper:
 
         if vid_idx is not None:
             vid_file_path = [self.vid_path_list[vid_idx]]
+        if vid_file_path is None:
+            vid_file_path = self.vid_path_list
 
-        for idx, _path in enumerate(self.vid_path_list):
+
+
+        for idx, _path in enumerate(vid_path_list):
             first_pid = int(get_packet_id(_path))
             cap = cv2.VideoCapture(_path)
             _trigger = self.vid_triggers[idx]
@@ -699,6 +703,8 @@ class AccountScraper:
         counter_pattern = re.compile(r'bc: (\d+\.\d\d) \d+')
         roi_pattern = re.compile(r'rect = \[([0-9,]+)\]')
         vid_pattern = re.compile(r'(\d{12})\.mp4')
+        # monitoirn g pattern "mntr_frms": 0
+        monitoring_pattern = re.compile(r'mntr_frms": (\d+)')
         # focal is pattered like this: "- (0.36,0.12) -"
         focal_pattern = r"\((-?\d*\.\d+),(-?\d*\.\d+)\)"
         # init all dfs
@@ -756,10 +762,15 @@ class AccountScraper:
             else:
                 data['notification'].append(None)
 
-            if 'MONITORING' in line:
-                data['monitoring'].append(True)
-            else:
-                data['monitoring'].append(False)
+            # moit
+            monitoring_match = monitoring_pattern.search(line)
+            if monitoring_match:
+                try:
+                    monitoring = int(monitoring_match.group(1)) > 0
+                    data['monitoring'].append(monitoring)
+                except:
+                    data['monitoring'].append(None)
+
             # focal pattern is - than space than (x,y) than space than -
             focal_match = re.search(focal_pattern, line)
 
@@ -936,11 +947,13 @@ class AccountScraper:
         df_pow = self.df.loc[self.df['pow'].notnull()][['time', 'pow']]
         df_notif = self.df.loc[self.df['notification'].notnull()][['time', 'notification']]
         df_rate = self.df.loc[self.df['rate'].notnull()][['time', 'rate']]
+        df_usr_rate = self.df.loc[self.df['usr_rate'].notnull()][['time', 'usr_rate']]
         df_bc_buffer = self.df.loc[self.df['bc_buffer'].notnull()][['time', 'bc_buffer']]
         df_counter = self.df.loc[self.df['counter'].notnull()][['time', 'counter']]
         df_mointoring = self.df.loc[self.df['monitoring'].notnull()][['time', 'monitoring']]
         df_video = self.df.loc[self.df['video'].notnull()][['time', 'video']]
         df_pi = self.df.loc[self.df['pi'].notnull()][['time', 'pi']]
+        df_head = self.df.loc[self.df['confidence_head'].notnull()][['time', 'confidence_head']]
         # get the date from one of the dfs
         try:
             self.date = df_conf['time'].iloc[0].strftime('%Y-%m-%d')
@@ -988,6 +1001,7 @@ class AccountScraper:
         df_mointoring.set_index('time', inplace=True)
         df_pi.set_index('time', inplace=True)
         df_rate.set_index('time', inplace=True)
+        df_head.set_index('time', inplace=True)
         # df_rate.set_index('time', inplace=True)
         # df_counter.set_index('time', inplace=True)
 
@@ -995,6 +1009,9 @@ class AccountScraper:
         tl_fig.add_trace(
             go.Scatter(x=df_conf.index, y=df_conf['confidence'] * 0.8, name='conf', hovertext=df_conf['confidence'],
                        mode='lines', hovertemplate='confidence: %{hovertext} \n time: %{x}'), row=1, col=1)
+        tl_fig.add_trace(go.Scatter(x=df_head.index, y=0.8 * df_head["confidence_head"] / df_head['confidence_head'].max(),
+                                   name='head', hovertext=df_head['confidence_head'],
+                                   mode='lines', hovertemplate='Head Confidence: %{hovertext} \n time: %{x}'), row=1, col=1)
         tl_fig.add_trace(
             go.Scatter(x=df_bc.index, y=0.8 * df_bc["bc1"] / df_bc['bc1'].max(), name='bc', hovertext=df_bc['bc1'],
                        mode='lines', hovertemplate='Breathing Classifier: %{hovertext} \n time: %{x}'), row=1, col=1)
@@ -1029,6 +1046,19 @@ class AccountScraper:
                           hovertext=df_rate['rate'], mode='lines', hovertemplate='Breathing Rate: %{hovertext} \n time: %{x}'),
                             row=1, col=1)
 
+        # add usr rate
+        user_rate = self.df.loc[self.df['usr_rate'].notnull()][['time', 'usr_rate']]
+        # keep the -1 as original vlaues, all other values normalize to 0.8
+        orig_user_rate = user_rate.copy()
+        user_rate.loc[user_rate['usr_rate'] != -1, 'usr_rate'] = 0.8 * user_rate.loc[user_rate['usr_rate'] != -1, 'usr_rate'] / user_rate.loc[user_rate['usr_rate'] != -1, 'usr_rate'].max()
+        # replace -1 by -0.1
+        user_rate.loc[user_rate['usr_rate'] == -1, 'usr_rate'] = -0.1
+        tl_fig.add_trace(
+            go.Scatter(x=user_rate['time'], y=user_rate['usr_rate'], name='usr_rate',
+                          hovertext=orig_user_rate['usr_rate'], mode='lines', hovertemplate='User Rate: %{hovertext} \n time: %{x}'),
+                            row=1, col=1)
+
+
 
 
 
@@ -1050,6 +1080,8 @@ class AccountScraper:
         tl_fig.update_traces(visible='legendonly', selector=dict(name="breathing_rate"))
         tl_fig.update_traces(visible='legendonly', selector=dict(name="pi"))
         tl_fig.update_traces(visible='legendonly', selector=dict(name="rate"))
+        tl_fig.update_traces(visible='legendonly', selector=dict(name="usr_rate"))
+        tl_fig.update_traces(visible='legendonly', selector=dict(name="head"))
 
         # plot power in a differnt subplot
         # add the notifications as vertical lines with text. group by notification and add each group as a different trace
@@ -1303,10 +1335,11 @@ class AccountScraper:
         # priamry  "emdp": {"e": 35, "px_cnt": 1009, "pos": [414.0, 406.0]
         primary_pattern = re.compile(r'emdp')
         pid_pattern = re.compile(r'"pid": \d+')
+        monitoring_pattern = re.compile(r'mntr_frms: (\d+)')
         # init all dfs
 
         data = {'time': [], 'confidence': [], 'bc1': [], 'bc2': [], 'roi': [],
-                'state': [], 'pow': [], 'notification': [], 'rate': [],
+                'state': [], 'pow': [], 'notification': [], 'rate': [],'usr_rate':[],
                 'bc_buffer': [], 'counter': [], 'monitoring': [], 'video': [], 'focal': [], 'pi': [], 'primary_position': [],
                 'active_regions': [],'algo_event': [], 'algo_event_ctx': [],'is_critical':[] ,'pid':[],'x':[],'y':[],'w':[],'h':[],
                 'x_head':[],'y_head':[],'w_head':[],'h_head':[], 'confidence_head':[]}
@@ -1331,8 +1364,15 @@ class AccountScraper:
             if timestamp_match:
                 timestamp = timestamp_match.group()
                 date = line[:6]
-                time = f"{pd.to_datetime('today').year} {date} {timestamp}"
-                data['time'][-1] = pd.to_datetime(time)
+                # check uf date ends with a year, otherwise its a new log version
+                try:
+                    time = f"{pd.to_datetime('today').year} {date} {timestamp}"
+                    data['time'][-1] = pd.to_datetime(time)
+                except:
+                    date = line[:10]
+                    time = f"{date} {timestamp}"
+                    data['time'][-1] = pd.to_datetime(time,dayfirst=True)
+
 
             if '+++++ NOTIFICATION +++++' in line:
                 # get the notification
@@ -1392,9 +1432,10 @@ class AccountScraper:
                     continue
 
 
-
             elif 'ALGO_SEC' in line:
                 json_string = re.search(r'ALGO_SEC: (.+)', line).group(1)
+                # fix night visn bug, add ' befor night_vsn if missing
+                json_string = json_string.replace('0] "nigt','0] ,"nigt')
                 try:
                     line_data = json.loads(json_string)
                 except:
@@ -1402,21 +1443,50 @@ class AccountScraper:
 
 
 
-                if line_data['mntr_frms'] is not None:
-                    data['monitoring'][-1] = True
-                if line_data['crtc_frms'] is None:
-                    data['is_critical'][-1] = False
+                monitoring = line_data['mntr_frms']
+                # check if monitoirng is an array or int
+                if hasattr(monitoring, '__len__'):
+                    monitoring = monitoring[0]
+                if monitoring is not None:
+                    data['monitoring'][-1] = monitoring > 0
                 else:
-                    data['is_critical'][-1] = True
+                    data['monitoring'][-1] = None
 
                 data['pi'][-1] = line_data['emdp']['e']
                 data['primary_position'][-1] = line_data['emdp']['pos']
                 data['active_regions'][-1] = float(line_data['motion']['active_regs'])
-                data['bc1'][-1] = line_data['breath_clsf']['cnf']
+                # check if breath_clsf or brth_clsf
+                if 'brt_clsf' in line_data:
+                    data['bc1'][-1] = line_data['brt_clsf']['cnf']
+                    data['bc_buffer'][-1] = line_data['brt_clsf']['nbc']
+                else:
+                    data['bc1'][-1] = line_data['breath_clsf']['cnf']
+                    data['bc_buffer'][-1] = line_data['breath_clsf']['nbc']
+
                 data['state'][-1] = line_data['rut']['s']
                 data['pow'][-1] = line_data['pwr']
                 data['rate'][-1] = line_data['frq']
-                data['bc_buffer'][-1]=line_data['breath_clsf']['nbc']
+                data['usr_rate'][-1] = line_data['usr_frq']
+
+                if 'evnt' in line_data:
+                    event = line_data['evnt']
+                    if len(event)>0:
+                        if isinstance(event[0], list):
+                            if event[0][0] == 420:# heasd inference
+                                data['confidence_head'][-1] = float(event[0][1][1])
+                                data['x_head'][-1] = int(event[0][1][2])
+                                data['y_head'][-1] = int(event[0][1][3])
+                                data['w_head'][-1] = int(event[0][1][4])
+                                data['h_head'][-1] = int(event[0][1][5])
+                            elif event[0][0] == 421: # baby inference
+                                data['confidence'][-1] = float(event[0][1][2])
+                                data['x'][-1] = int(event[0][1][3])
+                                data['y'][-1] = int(event[0][1][4])
+                                data['w'][-1] = int(event[0][1][5])
+                                data['h'][-1] = int(event[0][1][6])
+
+
+
 
 
 

@@ -11,7 +11,7 @@ from google.cloud import bigquery
 import os
 import tqdm
 
-macs = pd.read_csv(r'/Users/matanb/Downloads/All Version Users-data-2024-02-25 09_09_31.csv')
+macs = pd.read_csv(r'/Users/matanb/Downloads/All Version Users-data-2024-03-24 09_14_51.csv')
 
 query = """
     SELECT
@@ -52,7 +52,5 @@ for idx, row in df.iterrows():
     query_job = client.query(query)
     results = query_job.result()  # Waits for job to complete.
     print(f'Updated {mac_id} with {acc}', 'total ', results.total_rows, ' rows updated')
-
-
 
 
