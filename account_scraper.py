@@ -90,8 +90,8 @@ def weekDay(year, month, day):
     dayOfWeek += offset[month - 1] + (day - 1)
     dayOfWeek %= 7
     return dayOfWeek, week[dayOfWeek]
-os.environ[
-    'GOOGLE_APPLICATION_CREDENTIALS'] = '/Users/matanb/.config/gcloud/application_default_credentials.json'
+# os.environ[
+#     'GOOGLE_APPLICATION_CREDENTIALS'] = '/Users/matanb/.config/gcloud/application_default_credentials.json'
 storage_client = storage.Client(project='nanobebe-production')
 def figures_to_html(figs, filename="dashboard.html"):
     with open(filename, 'w') as dashboard:
@@ -125,13 +125,7 @@ def get_packet_id(file_path):
 class AccountScraper:
 
     def __init__(self,  dates = None, mac_path = None, mac_id = None, acc_id = None):
-        root = os.getcwd()
-        mac_path = os.path.join(root, 'All Version Users-data-2024-02-25 09_09_31.csv')
-        macs = pd.read_csv(mac_path)
-        if mac_id is not None and acc_id is not None:
-            macs = pd.concat([macs, pd.DataFrame([[acc_id, mac_id, mac_id]],
-                                                 columns=['AccountId', 'CamMAC', 'BaseMAC'])])
-            macs.to_csv(mac_path, index=False)
+
 
         self.mac_id = mac_id
         self.acc_id = acc_id
@@ -146,7 +140,7 @@ class AccountScraper:
 
         if self.acc_id is None:
             self.acc_id = 0
-        log_path = LogRetriever().get_logs(self.acc_id, dates,  mac_id=self.mac_id)
+        log_path = LogRetriever().get_logs( dates,  mac_id=self.mac_id)
         total_lines = []
         for log_path_ in log_path:
             with open(log_path_) as f:

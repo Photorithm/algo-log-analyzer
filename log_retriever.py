@@ -12,32 +12,18 @@ import datetime
 class LogRetriever:
 
     def __init__(self, mac_path = None):
-        root = os.getcwd()
-        mac_path = os.path.join(root, 'All Version Users-data-2024-02-25 09_09_31.csv')
-        macs = pd.read_csv(mac_path)
+
         self.storage_client = storage.Client()
         self.bucket_name = "nanobebe-iot-logs"
-        self.macs = macs
 
 
-    def get_logs(self,  acc_id ,  dates, mac_id = None, output_path = None):
-        # if acc_id is char turn it into int, if it is possible. there are someweird
-        # drop weird strings from acc_id
-        self.macs['AccountId'] = self.macs['AccountId'].apply(lambda x: re.sub(r'\D', '', str(x)))
-        self.macs['AccountId'] = [int(x) for x in self.macs['AccountId'].tolist() ]
+    def get_logs(self,   dates, mac_id = None, output_path = None):
+
 
         if mac_id is None:
-            mac_id = self.macs[self.macs['AccountId'] == acc_id]['BaseMAC'].tolist()[0]
-        elif acc_id is None or acc_id == 0:
-            if len(self.macs[self.macs['BaseMAC'] == mac_id]['AccountId'].tolist()) == 0:
-                acc_id = 0
-            else:
-                acc_id = self.macs[self.macs['BaseMAC'] == mac_id]['AccountId'].tolist()[0]
+            return None
         else:
-            if len(self.macs[self.macs['BaseMAC'] == mac_id]['AccountId'].tolist()) == 0:
-                acc_id = 0
-            else:
-                acc_id = self.macs[self.macs['BaseMAC'] == mac_id]['AccountId'].tolist()[0]
+            acc_id = 0
 
         # dates is a pd_date_Range
         # if only one date is given, convert to list
